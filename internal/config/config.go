@@ -2,8 +2,8 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 )
@@ -32,18 +32,24 @@ func getUserHomeDir() string {
 	return userHomedir
 }
 
-func (c *Config) SetUser(currentUserName string) {
+func (c *Config) SetUser(currentUserName string) error {
 	if strings.TrimSpace(currentUserName) == "" {
-
+		return errors.New("user cannot be an empty string.")
 	}
 	c.CurrentUserName = currentUserName
+	err := Write(*c)
+	if err != nil {
+		os.Exit(1)
+		return fmt.Errorf("error updating configuration file")
+	}
+	return nil
 }
 
-func Read() (Config, error) {
-	file, err := os.Open(configPath)
+func Read() (*Config, error) {
+	file, err := os.Open(GetConfigFilePath())
 	if err != nil {
-		log.Fatal("Error opening configuration file:", err)
-		return Config{}, err
+		err = fmt.Errorf("failed to open configuration file %s: %w ", GetConfigFilePath(), err)
+		return &Config{}, err
 	}
 	defer file.Close()
 
@@ -52,17 +58,17 @@ func Read() (Config, error) {
 	err = decoder.Decode(&config)
 
 	if err != nil {
-		log.Fatal("Error decoding json configuration:", err)
-		return Config{}, err
+		err = fmt.Errorf("error decoding json configuration: %w", err)
+		return &Config{}, err
 
 	}
-	return config, nil
+	return &config, nil
 }
 
 func Write(cfg Config) error {
-	file, err := os.Open(configPath)
+	file, err := os.Create(configPath)
 	if err != nil {
-		log.Fatal("Error opening configuration file:", err)
+		return fmt.Errorf("error opening configuration file: %w", err)
 	}
 	defer file.Close()
 
@@ -71,7 +77,7 @@ func Write(cfg Config) error {
 
 	err = encoder.Encode(cfg)
 	if err != nil {
-		fmt.Println("Error writing gator config:", err)
+		fmt.Println("Error writing gator configuration:", err)
 		return err
 	}
 	return nil
